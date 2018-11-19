@@ -1,0 +1,188 @@
+1. Tworzenie projektu
+
+2. Budowa Systemu w Qsys
+a) dodawanie komponentów
+Component genereted IRQ settings:
+	Synchronusly capture			[checked]
+	Edge Type:							Rising
+	Enable bit-clearing for edge capture register [checked]
+	Generate IRQ	[checked]
+	IRQ Type			EDGE
+BSP Timer:
+	sys_clk_timer musi być ustawiony na timer0 lub timer1
+
+
+b)Połączenia w generowanym systemi:
+
+	clock_0:
+		- clk 											-> wszystko
+		- clk_reset 									-> wszystko
+		- clk_in_reset 								-> NIOS_II_Procesor[debug_reset_request]
+		
+	NIOS_II_Procesor:
+		- data_master 							-> OnChip_Memory[s1]
+		- instruction_master					-> OnChip_Memory[s1]
+		
+		- data_master								-> JTAG_UART[avalon_jtag_slave]
+		- irq												-> JTAG_UART[irq]
+		- debug_reset_request				-> JTAG_UART[reset]
+		
+		- data_master								-> leds[s1]
+		- debug_reset_request				-> leds[reset]
+		- export external_connection
+		
+		- data_master								-> sw_sliders[s1]
+		- debug_reset_request				-> sw_sliders[reset]
+		- irq												-> sw_sliders[irq]
+		- export external_connection
+		
+		- data_master								-> pushbutton[s1]
+		- debug_reset_request				-> pushbutton[reset]
+		- irq												-> pushbutton[irq]
+		- export external_connection
+
+		- data_master								-> HEX[avalon_slave]
+		- export conduit_end
+
+Vector:
+		- Reset Vector[Reset vector memory] = OnChip_Memory
+		- Exception Vector[Exception vector memory] = OnChip_Memory
+			
+Address:
+		- System > Asign Base Addresses
+		- System > Asign Interupt Numbers
+			
+	Generowanie:
+		- Synthesis
+			- Create HDL design files for synthesis:	VHDL
+		- Path
+			- Output path
+
+3. Kompilacja w Quartusie			
+Dodanie pliku do projektu (Project > Add/Remove files in project - plik .qsys)
+Zmiana Top-level entity	(Assigments -> Settings )
+Kompilacja
+Przypisanie pinów				(Import Assigments - .QSF)
+Ponowna Kompilacja
+
+
+4. Zaprogramowanie płytki
+
+	a) konfiguracja USB Bluster
+		swi # 			cd..
+		home # 		cd ..
+		/ # 				cd Altera/
+		/Altera #		cd 17.0
+		17.0 #			cd quartus/
+		quartus #	cd bin
+		bin #
+		
+		- wpisanie komend
+		$ sudo killall -9 jtagd 
+		$ ./jtagconfig
+		
+	b) Programownai
+		- Tools -> Programming
+		- Wybrać hardware setup
+		- Auto detect
+		- Pojawią się 2 układy: SOCVHPS i 5CSEMA5, usunąć 5CSEMA5
+		- Add file -> output_files -> plik.sof
+		
+5. Tworzenie projektu w Eclipse
+
+	a)Wybór workspace
+		- katalog w Quartusie:  Dabek_Cichocki_work
+	b) Tworzenie nowego projektu w Eclipse:
+		- File File -> New -> Nios II Application and BSP from Template
+		- Wprowadzić:  SOPC Information File name
+		- Wprowadzić nazwę
+		- wprowadzić szablon [Hello World]
+		
+	c) Generowanie kodu:
+		- prawy -> project_name_bsp -> NIOS_II -> BSP Editor
+		- modyfikowanie programu w helloworld.c
+		- build project (dwóch katalogów) (.elf plik wykonywalny)
+		
+	d) Zaprogramowanie płytki
+		- NiosII -> Quartus II Programmer
+		- Auto Detect - wybór układ FPGA, usunąć 5CSEMA5
+		- change/add file - wybrać plik proj.sof
+		- polecenie start
+		
+	e) Uruchomienie programu
+		- Run -> Run Configuration
+		- Nios II Hardware
+			- Target Connection -> refresh connection
+			- uzupełnić Project name oraz Project ELF file name
+			
+C:
+
+	#include <stdio.h>
+	#include <io.h>
+	#include <system.h>
+
+	- IOWR(port, offest, val)
+	- val = IORD(port, offset)
+
+	- definicja enum -  enum state {S1, S2, S3, S4};	enum state current_state;
+	
+	- set one bit [HIGH]			leds |= LED0;
+	- set one bit [LOW]			leds &= ~(LED0);
+	
+	- hex IOWR(HEX_BASE, 0, (FOUR << 24) | (THREE << 16) (TWO << 8) | ONE);
+	
+	- hex - numbers:
+		#define ZERO SEGA | SEGB | SEGC | SEGD |SEGE | SEGF
+		#define ONE  SEGB | SEGC
+		#define TWO  SEGA | SEGB | SEGG | SEGE | SEGD
+		#define THREE SEGA | SEGB | SEGC | SEGD | SEGG
+		#define FOUR SEGC | SEGG | SEGF
+		#define FIVE SEGA | SEGC | SEGD | SEGF  | SEGG
+		#define SIX SEGA | SEGC | SEGD | SEGE | SEGF | SEGG
+		
+		
+		
+
+		
+		
+
+----------------------------------maskownie przerwania:----------------------------------
+PIO składa się:
+a) Input/Output data
+b) Direction control for each input/output line
+c) Interrput enable/disable for each input line
+d) Edge detection for each input line
+- zawsze 			a)
+- jezeli port i/o 		b)
+- jeżeli genruje przerwania 	c), d)
+
+
+#define IOWR_ALTERA_AVALON_PIO_IRQ_MASK(base, data)   IOWR(base, 2, data)
+		base - component port base_address
+		data - słowo maskujące
+		
+		
+----------------------------------wektor przerwań----------------------------------
+ISR - Interrupt Service Routine (procedura obsługi przerwań)
+
+extern int alt_ic_isr_register(alt_u32 ic_id,				- interrupt controller
+                        alt_u32 irq,											- numer przerwania
+                        alt_isr_func isr,									- funkcja obsługująca przerwanie
+                        void *isr_context,								- kontekst do przerwania
+                        void *flags);										- flaga usawiana na zero
+
+--------------------------Uczulenie kontrolera na przerwania---------------------------
+int alt_ic_irq_enable (alt_u32 ic_id, alt_u32 irq);
+int alt_ic_irq_disable(alt_u32 ic_id, alt_u32 irq);
+
+	  ic_id			- kontoler przerwania
+	  irq				- numer przerwania
+	  
+	  
+	  
+---------------------------------Licznik-------------------------------------------
+alt_timestamp_start()				return 0 - OK
+alt_timestamp()						zwraca stan licznika
+alt_u32 alt_timestamp_freq()	zwaraca częstotliwość w Hz
+
+	
